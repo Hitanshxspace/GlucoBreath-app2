@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GlucoBreath App</title>
+<meta name="description" content="Pair a GlucoBreath device over Bluetooth, take a breath test and track your glucose estimates over time.">
+<meta name="theme-color" content="#0A6B72">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ============ AUTH ============ -->
+<div id="auth" class="auth" hidden>
+  <aside class="auth-art">
+    <span class="logo on-dark" role="img" aria-label="GlucoBreath"></span>
+    <div class="auth-art-mid">
+      <div class="device">
+        <canvas id="auth-canvas" width="640" height="320" role="img" aria-label="GlucoBreath device display"></canvas>
+      </div>
+    </div>
+    <div>
+      <h1>Track glucose from a single breath.</h1>
+      <p>Pair your GlucoBreath over Bluetooth, take a five-second test, and watch your estimates build into a trend.</p>
+    </div>
+  </aside>
+
+  <section class="auth-form">
+    <div class="auth-card">
+      <div class="seg wide" role="tablist" aria-label="Account">
+        <button type="button" role="tab" id="tab-in" aria-selected="true" aria-pressed="true">Sign in</button>
+        <button type="button" role="tab" id="tab-up" aria-selected="false" aria-pressed="false">Create account</button>
+      </div>
+
+      <form id="form-in" class="form" novalidate>
+        <h2>Welcome back</h2>
+        <label for="in-email">Email</label>
+        <input id="in-email" type="email" autocomplete="email" required>
+        <label for="in-pass">Password</label>
+        <input id="in-pass" type="password" autocomplete="current-password" required>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+
+      <form id="form-up" class="form" hidden novalidate>
+        <h2>Create your account</h2>
+        <label for="up-name">Name</label>
+        <input id="up-name" type="text" autocomplete="name" required>
+        <label for="up-email">Email</label>
+        <input id="up-email" type="email" autocomplete="email" required>
+        <label for="up-pass">Password <span class="hint">at least 8 characters</span></label>
+        <input id="up-pass" type="password" autocomplete="new-password" required minlength="8">
+        <button class="btn primary" type="submit">Create account</button>
+      </form>
+
+      <p id="auth-err" class="err" role="alert" aria-live="assertive"></p>
+      <p class="fine">Accounts and readings are stored in this browser on this device only. Nothing is uploaded. Clearing site data removes them.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" hidden>
+  <header class="bar">
+    <div class="bar-in">
+      <a class="brand" href="#/dashboard" aria-label="GlucoBreath dashboard"><span class="logo" role="img" aria-hidden="true"></span></a>
+      <nav class="nav" id="nav" aria-label="Main">
+        <a href="#/dashboard" data-v="dashboard">Dashboard</a>
+        <a href="#/test" data-v="test">Test</a>
+        <a href="#/history" data-v="history">History</a>
+        <a href="#/guide" data-v="guide">Guide</a>
+        <a href="#/device" data-v="device">Device</a>
+      </nav>
+      <a id="linkpill" class="pill" href="#/device"><i class="dot" aria-hidden="true"></i><span id="linkpill-t">Not connected</span></a>
+      <div class="seg theme" role="group" aria-label="Colour theme">
+        <button type="button" id="t-light" aria-pressed="false">Light</button>
+        <button type="button" id="t-dark" aria-pressed="false">Dark</button>
+      </div>
+      <div class="acct">
+        <button type="button" id="acct-btn" class="btn ghost" aria-haspopup="true" aria-expanded="false"><span id="acct-initial"></span></button>
+        <div id="acct-menu" class="menu" hidden>
+          <div class="menu-who"><b id="acct-name"></b><span id="acct-email"></span></div>
+          <button type="button" id="menu-theme" class="menu-item">Switch theme</button>
+          <button type="button" id="signout" class="menu-item">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Dashboard -->
+    <section id="v-dashboard" class="view" hidden>
+      <div class="view-head">
+        <div>
+          <div class="label" id="dash-date"></div>
+          <h1 id="dash-hello">Dashboard</h1>
+        </div>
+        <div class="controls">
+          <div class="seg" role="group" aria-label="Units">
+            <button type="button" id="unit-mmol" aria-pressed="true">mmol/L</button>
+            <button type="button" id="unit-mgdl" aria-pressed="false">mg/dL</button>
+          </div>
+          <div class="seg" role="group" aria-label="Range" id="range-seg">
+            <button type="button" class="rng" data-r="7" aria-pressed="true">7 days</button>
+            <button type="button" class="rng" data-r="30" aria-pressed="false">30 days</button>
+            <button type="button" class="rng" data-r="0" aria-pressed="false">All</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="dash-empty" class="empty card" hidden>
+        <h2>No readings yet</h2>
+        <p>Pair your GlucoBreath, take a test, and your first estimate appears here. To look around first, load a set of sample readings.</p>
+        <div class="row">
+          <a class="btn primary" href="#/device">Connect a device</a>
+          <button type="button" class="btn" id="btn-sample">Load sample readings</button>
+        </div>
+      </div>
+
+      <div id="dash-main">
+        <div class="hero-grid">
+          <article class="card latest">
+            <div class="label">Latest reading</div>
+            <div class="latest-top">
+              <div class="latest-num"><span id="latest-val">--</span><span id="latest-unit" class="unit">mmol/L</span></div>
+              <div id="gauge-latest" class="gauge"></div>
+            </div>
+            <div class="latest-meta">
+              <span id="latest-chip" class="chip">Normal</span>
+              <span id="latest-when"></span>
+            </div>
+            <dl class="mini">
+              <div><dt>Context</dt><dd id="latest-ctx">--</dd></div>
+              <div><dt>Change from previous</dt><dd id="latest-delta">--</dd></div>
+              <div><dt>Room</dt><dd id="latest-room">--</dd></div>
+            </dl>
+            <a class="btn primary" href="#/test">Take a test</a>
+          </article>
+
+          <article class="card stats">
+            <div class="label" id="stats-label">Last 7 days</div>
+            <dl class="statlist">
+              <div><dt>Average</dt><dd id="st-avg">--</dd></div>
+              <div><dt>Lowest</dt><dd id="st-min">--</dd></div>
+              <div><dt>Highest</dt><dd id="st-max">--</dd></div>
+              <div><dt>In range (3.9 to 7.8 mmol/L)</dt><dd id="st-range">--</dd></div>
+              <div><dt>Readings</dt><dd id="st-n">--</dd></div>
+            </dl>
+            <div class="tir-wrap">
+              <div class="label">Time in range</div>
+              <div id="tir"></div>
+            </div>
+          </article>
+        </div>
+
+        <article class="card chartcard">
+          <div class="chart-head">
+            <h2>Trend</h2>
+            <span class="key"><i class="key-band" aria-hidden="true"></i>Normal range</span>
+          </div>
+          <div id="chart" class="chart"></div>
+          <div id="chart-tip" class="tip" hidden></div>
+        </article>
+
+        <div class="pair-grid">
+          <article class="card">
+            <div class="chart-head"><h2>Average by context</h2></div>
+            <div id="ctxchart" class="chart2"></div>
+          </article>
+          <article class="card">
+            <div class="chart-head"><h2>Daily range</h2><span class="key"><i class="key-band" aria-hidden="true"></i>Normal range</span></div>
+            <div id="daychart" class="chart2"></div>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="chart-head">
+            <h2>Recent readings</h2>
+            <a href="#/history" class="link">View all</a>
+          </div>
+          <ul id="recent" class="recent"></ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- Test -->
+    <section id="v-test" class="view" hidden>
+      <div class="view-head">
+        <div>
+          <div class="label">Measure</div>
+          <h1>Take a test</h1>
+        </div>
+      </div>
+      <div class="test-grid">
+        <div>
+          <div class="device">
+            <canvas id="mirror" width="640" height="320" role="img" aria-label="Mirror of the device display"></canvas>
+            <div class="device-foot"><span id="mirror-name">GlucoBreath</span><span id="mirror-link">Not connected</span></div>
+          </div>
+          <p id="test-hint" class="hint-line" aria-live="polite">Connect your device to begin.</p>
+          <div class="card gauge-card">
+            <div class="label" id="gauge-live-label">Live estimate</div>
+            <div id="gauge-live" class="gauge"></div>
+          </div>
+        </div>
+        <div class="card controls-card">
+          <div>
+            <div class="label">Context</div>
+            <div class="seg wide" role="group" aria-label="Test context" id="ctx-seg">
+              <button type="button" class="ctx" data-c="Fasting" aria-pressed="true">Fasting</button>
+              <button type="button" class="ctx" data-c="Before meal" aria-pressed="false">Before meal</button>
+              <button type="button" class="ctx" data-c="After meal" aria-pressed="false">After meal</button>
+              <button type="button" class="ctx" data-c="Other" aria-pressed="false">Other</button>
+            </div>
+          </div>
+          <button type="button" id="btn-start" class="btn primary big-btn" disabled>Start test</button>
+          <p class="fine" id="start-note">You can also press the button on the device.</p>
+          <div>
+            <div class="label">Acetone during the breath</div>
+            <div id="blow-chart" class="blow-chart"></div>
+          </div>
+          <div id="last-result" class="last-result" hidden>
+            <div class="label">Saved reading</div>
+            <div class="lr-row"><b id="lr-val">--</b><span id="lr-chip" class="chip">Normal</span></div>
+            <a class="link" href="#/history">Open history</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section id="v-history" class="view" hidden>
+      <div class="view-head">
+        <div>
+          <div class="label">Log</div>
+          <h1>History</h1>
+        </div>
+        <div class="controls">
+          <label class="sr" for="hist-filter">Filter by context</label>
+          <select id="hist-filter">
+            <option value="">All contexts</option>
+            <option>Fasting</option>
+            <option>Before meal</option>
+            <option>After meal</option>
+            <option>Other</option>
+          </select>
+          <button type="button" class="btn" id="btn-csv">Export CSV</button>
+          <button type="button" class="btn" id="btn-clear-sample" hidden>Remove sample readings</button>
+        </div>
+      </div>
+      <div id="hist-empty" class="empty card" hidden>
+        <h2>Nothing to show</h2>
+        <p>Readings from your tests are listed here.</p>
+      </div>
+      <div class="tablewrap" id="hist-wrap">
+        <table>
+          <thead><tr><th>Date and time</th><th class="n">Glucose</th><th>Status</th><th>Context</th><th class="n">Acetone</th><th class="n">Room</th><th><span class="sr">Actions</span></th></tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Guide -->
+    <section id="v-guide" class="view" hidden>
+      <div class="view-head">
+        <div>
+          <div class="label">How to use</div>
+          <h1>Six steps to a reading</h1>
+        </div>
+      </div>
+
+      <div class="guide">
+        <article class="gstep">
+          <svg class="ill" viewBox="0 0 320 200" role="img" aria-label="Device connected to a USB power adapter">
+            <rect class="dev" x="110" y="48" width="110" height="78" rx="9"/>
+            <rect class="scr" x="120" y="58" width="90" height="42" rx="3"/>
+            <text class="lt" x="165" y="83">GLUCOBREATH</text>
+            <rect class="a" x="190" y="108" width="22" height="12" rx="3"/>
+            <circle class="af" cx="127" cy="114" r="3"/>
+            <path class="s" d="M150 126 v22 q0 10 -10 10 H80"/>
+            <rect class="ph" x="38" y="144" width="42" height="28" rx="5"/>
+            <path class="s" d="M38 152 h-9 M38 164 h-9"/>
+            <text class="tx" x="165" y="186">5 V USB supply</text>
+          </svg>
+          <div class="gtext"><span class="gnum">01</span><h3>Power the device</h3><p>Plug the USB cable into a 5 V supply. The LED blinks three times and the droplet mark appears on the screen.</p></div>
+        </article>
+
+        <article class="gstep">
+          <svg class="ill" viewBox="0 0 320 200" role="img" aria-label="Device warming up with heat rising from the sensors and a 30 second clock">
+            <path class="a" d="M128 40 q8 -8 0 -16 q-8 -8 0 -16 M165 40 q8 -8 0 -16 q-8 -8 0 -16 M202 40 q8 -8 0 -16 q-8 -8 0 -16" opacity=".8"/>
+            <rect class="dev" x="100" y="56" width="130" height="80" rx="9"/>
+            <rect class="scr" x="110" y="66" width="110" height="46" rx="3"/>
+            <text class="lt" x="165" y="84">WARMING UP</text>
+            <rect class="lt-s" x="124" y="94" width="82" height="8" rx="4"/>
+            <rect class="lt-f" x="127" y="97" width="46" height="2" rx="1"/>
+            <circle class="s" cx="270" cy="96" r="26"/>
+            <path class="s" d="M270 96 v-16 M270 96 l12 7"/>
+            <text class="tx" x="270" y="142">30 s</text>
+            <text class="tx" x="165" y="170">Keep in clean air</text>
+          </svg>
+          <div class="gtext"><span class="gnum">02</span><h3>Let the sensors warm up</h3><p>Leave the device in clean air for about 30 seconds while the gas sensors heat, then it measures a clean-air baseline. Do not breathe on it yet. For the best results, keep it powered for 20 minutes before your first test of the day.</p></div>
+        </article>
+
+        <article class="gstep">
+          <svg class="ill" viewBox="0 0 320 200" role="img" aria-label="Phone and device both showing the same pairing code, with the device push button highlighted">
+            <rect class="ph" x="30" y="24" width="86" height="152" rx="14"/>
+            <text class="tx" x="73" y="72">Pairing code</text>
+            <text class="code" x="73" y="104">482 913</text>
+            <rect class="a" x="48" y="132" width="50" height="18" rx="9"/>
+            <path class="a" d="M138 92 h36 M138 108 h36"/>
+            <rect class="dev" x="196" y="62" width="100" height="76" rx="9"/>
+            <rect class="scr" x="205" y="70" width="82" height="36" rx="3"/>
+            <text class="lt big" x="246" y="94">482 913</text>
+            <rect class="a" x="262" y="116" width="22" height="12" rx="3"/>
+            <circle class="a" cx="273" cy="122" r="18" opacity=".5"/>
+            <circle class="a" cx="273" cy="122" r="26" opacity=".25"/>
+          </svg>
+          <div class="gtext"><span class="gnum">03</span><h3>Pair with this app</h3><p>Open Device, choose Search for devices and pick your GlucoBreath. A six-digit code appears in the app and on the device screen. If they match, press the button on the device to confirm.</p></div>
+        </article>
+
+        <article class="gstep">
+          <svg class="ill" viewBox="0 0 320 200" role="img" aria-label="A 15 minute clock next to a cup with a cross through it">
+            <circle class="s" cx="100" cy="96" r="46"/>
+            <path class="a ark" d="M100 50 A46 46 0 0 1 146 96"/>
+            <path class="s" d="M100 96 v-30 M100 96 l22 12"/>
+            <text class="tx" x="100" y="168">15 min</text>
+            <path class="s" d="M208 82 h56 v34 a14 14 0 0 1 -14 14 h-28 a14 14 0 0 1 -14 -14 z"/>
+            <path class="s" d="M264 90 h8 a10 10 0 0 1 0 22 h-8"/>
+            <path class="a ark" d="M196 144 L284 62"/>
+            <text class="tx" x="240" y="168">No food, drink or smoke</text>
+          </svg>
+          <div class="gtext"><span class="gnum">04</span><h3>Prepare your breath</h3><p>Avoid eating, drinking, smoking, mouthwash and alcohol for at least 15 minutes before a test. Gas sensors react to many compounds, not only acetone.</p></div>
+        </article>
+
+        <article class="gstep">
+          <svg class="ill" viewBox="0 0 320 200" role="img" aria-label="Breath flowing from the mouth into the device inlet from two centimetres away">
+            <ellipse class="s" cx="46" cy="96" rx="20" ry="12"/>
+            <ellipse class="s" cx="46" cy="96" rx="8" ry="4"/>
+            <path class="a flow" d="M72 86 q40 -10 80 0 M72 96 h80 M72 106 q40 10 80 0"/>
+            <rect class="dev" x="158" y="52" width="130" height="86" rx="9"/>
+            <rect class="scr" x="150" y="86" width="9" height="20" rx="2"/>
+            <rect class="scr" x="170" y="62" width="106" height="50" rx="3"/>
+            <text class="lt" x="223" y="76">BLOW NOW</text>
+            <text class="lt huge" x="223" y="106">5</text>
+            <path class="s" d="M72 146 h78 M72 140 v12 M150 140 v12"/>
+            <text class="tx" x="111" y="170">about 2 cm</text>
+          </svg>
+          <div class="gtext"><span class="gnum">05</span><h3>Blow steadily for five seconds</h3><p>Press the button on the device, or press Start test in the app. When the screen says BLOW NOW, exhale slowly and evenly toward the inlet for the full countdown.</p></div>
+        </article>
+
+        <article class="gstep">
+          <svg class="ill" viewBox="0 0 320 200" role="img" aria-label="Device showing a result that is saved as a point on a chart in the app">
+            <rect class="dev" x="24" y="44" width="118" height="100" rx="9"/>
+            <rect class="scr" x="34" y="54" width="98" height="80" rx="3"/>
+            <text class="lt sm" x="83" y="68">GLUCOSE LEVEL</text>
+            <text class="lt huge" x="83" y="102">6.4</text>
+            <rect class="pillbg" x="55" y="112" width="56" height="13" rx="3"/>
+            <text class="dk" x="83" y="122">NORMAL</text>
+            <path class="a" d="M150 94 h22 M166 88 l8 6 l-8 6"/>
+            <rect class="ph" x="184" y="28" width="104" height="144" rx="12"/>
+            <rect class="band" x="196" y="86" width="80" height="34"/>
+            <polyline class="a" points="198,138 214,120 230,128 246,98 262,106 274,82"/>
+            <circle class="af" cx="274" cy="82" r="4.5"/>
+            <text class="tx" x="236" y="152">Saved</text>
+          </svg>
+          <div class="gtext"><span class="gnum">06</span><h3>Read and save</h3><p>The estimate appears in mmol/L with a status band, then a detail page. The app saves it to your history automatically, tagged with the context you chose.</p></div>
+        </article>
+      </div>
+
+      <div class="faq">
+        <h2>If something is not right</h2>
+        <details>
+          <summary>The device does not appear in the list</summary>
+          <p>Use Chrome or Edge on Android, Windows, macOS, Linux or ChromeOS. Check that Bluetooth is on, the device is powered and past its splash screen, and no other phone is connected to it. Reload this page and try again.</p>
+        </details>
+        <details>
+          <summary>The codes do not match</summary>
+          <p>Choose Codes do not match, then search again. Several GlucoBreath devices nearby are told apart by the four characters at the end of their name. Only confirm when both screens show the same code.</p>
+        </details>
+        <details>
+          <summary>I use an iPhone or iPad</summary>
+          <p>Safari on iOS does not support Web Bluetooth. Use an Android phone, a laptop with Chrome or Edge, or a Web Bluetooth capable iOS browser such as Bluefy.</p>
+        </details>
+        <details>
+          <summary>Readings look too high or too low</summary>
+          <p>Warm the device up longer, start in clean air, ventilate the room and avoid recent food, drink and smoke. The estimate depends on a calibration against a reference glucometer, so repeat the comparison if results drift.</p>
+        </details>
+        <p class="fine">GlucoBreath is a prototype screening aid and not a medical device. It does not diagnose, treat or monitor diabetes. Use a blood glucose meter and talk to a clinician for medical decisions.</p>
+      </div>
+    </section>
+
+    <!-- Device -->
+    <section id="v-device" class="view" hidden>
+      <div class="view-head">
+        <div>
+          <div class="label">Bluetooth</div>
+          <h1>Device</h1>
+        </div>
+      </div>
+
+      <div id="dev-support" class="notice" hidden>
+        <b>This browser cannot use Bluetooth devices.</b> Open the app in Chrome or Edge on Android, Windows, macOS or Linux. iPhone and iPad Safari do not support Web Bluetooth. You can still try the app with the demo device below.
+      </div>
+
+      <div class="dev-grid">
+        <div class="card">
+          <!-- idle -->
+          <div id="dev-idle">
+            <h2>Connect your GlucoBreath</h2>
+            <p class="body">Power on the device and wait for the home screen. Then search for nearby devices and choose the one that starts with GlucoBreath.</p>
+            <div class="row">
+              <button type="button" class="btn primary" id="btn-ble">Search for devices</button>
+              <button type="button" class="btn" id="btn-demo">Use demo device</button>
+            </div>
+            <p class="fine">The demo device simulates a GlucoBreath so you can try the app without hardware. Its readings are labelled as demo data.</p>
+          </div>
+
+          <!-- searching -->
+          <div id="dev-searching" hidden>
+            <h2>Searching</h2>
+            <p class="body">Choose your device in the browser window that opened. If nothing opened, close this message and try again.</p>
+          </div>
+
+          <!-- pairing -->
+          <div id="dev-pairing" hidden>
+            <div class="label">Pairing code</div>
+            <div id="pair-code" class="pair-code" aria-label="Pairing code">--- ---</div>
+            <p class="body" id="pair-msg">Compare this code with the one on your device screen.</p>
+            <ol class="pair-steps">
+              <li id="ps-1">Device found</li>
+              <li id="ps-2">Code sent to the device</li>
+              <li id="ps-3">Match the codes, then press the button on the device</li>
+            </ol>
+            <div class="row">
+              <button type="button" class="btn" id="btn-nomatch">Codes do not match</button>
+            </div>
+          </div>
+
+          <!-- paired -->
+          <div id="dev-linked" hidden>
+            <div class="label">Connected</div>
+            <h2 id="linked-name">GlucoBreath</h2>
+            <dl class="mini wide">
+              <div><dt>Link</dt><dd>Bluetooth, paired this session</dd></div>
+              <div><dt>Room temperature</dt><dd id="linked-t">--</dd></div>
+              <div><dt>Room humidity</dt><dd id="linked-h">--</dd></div>
+              <div><dt>Device state</dt><dd id="linked-stage">Standby</dd></div>
+            </dl>
+            <div class="row">
+              <a class="btn primary" href="#/test">Go to test</a>
+              <button type="button" class="btn" id="btn-disc">Disconnect</button>
+            </div>
+          </div>
+          <p id="dev-err" class="err" role="alert"></p>
+        </div>
+
+        <div id="demo-device" class="demo" hidden>
+          <div class="label">Demo device</div>
+          <div class="device">
+            <canvas id="demo-canvas" width="640" height="320" role="img" aria-label="Simulated device display"></canvas>
+            <div class="device-foot"><span>GlucoBreath demo</span><span>Simulated</span></div>
+          </div>
+          <button type="button" class="btn" id="demo-touch">Button on demo device</button>
+          <p class="fine">In the demo, press this button where you would press the real button.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <p>GlucoBreath is a prototype screening aid and not a medical device. It does not diagnose, treat or monitor diabetes.</p>
+  </footer>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/oled.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
